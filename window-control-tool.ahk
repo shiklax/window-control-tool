@@ -4,12 +4,13 @@ Persistent
 ; === Global variables ===
 global SelectedHwnd := 0
 global IsClickThroughEnabled := false
-global ModifiedWindows := Map() ; Track all modified windows
-global SavedPositions := Map() ; Track user-saved positions
-global gui1 ; Make GUI object accessible to OnMessage handler
+global ModifiedWindows := Map()
+global SavedPositions := Map()
+global gui1
+global ProfileFile := A_ScriptDir . "\WindowProfiles.ini"
 
 ; === Create GUI ===
-gui1 := Gui("+Resize", "Window Control Tool v1.8")
+gui1 := Gui("+Resize", "Window Control Tool v4.7")
 gui1.SetFont("s9", "Segoe UI")
 
 ; Main controls
@@ -25,30 +26,48 @@ btnResetAll := gui1.Add("Button", "x380 y240 w80 h25", "Reset All")
 
 ; Current window info
 gui1.Add("Text", "x10 y280", "📊 Current window:")
-SelectedWindowText := gui1.Add("Text", "x10 y300 w450 h40 Border", "No window selected`n`nSelect a window from the list above")
+SelectedWindowText := gui1.Add("Text", "x10 y300 w450 h60 Border", "No window selected`n`nSelect a window from the list above")
 SelectedWindowText.SetFont("s8")
 
 ; Transparency controls
-gui1.Add("Text", "x10 y350", "Transparency:")
-OpacitySlider := gui1.Add("Slider", "x10 y370 w350 h20 Range50-255 ToolTip", 255)
-OpacityValue := gui1.Add("Text", "x370 y372 w50", "100%")
-gui1.Add("Button", "x10 y400 w60 h25", "50%").OnEvent("Click", (*) => SetOpacity(127))
-gui1.Add("Button", "x80 y400 w60 h25", "75%").OnEvent("Click", (*) => SetOpacity(191))
-gui1.Add("Button", "x150 y400 w60 h25", "100%").OnEvent("Click", (*) => SetOpacity(255))
+gui1.Add("Text", "x10 y370", "Transparency:")
+OpacitySlider := gui1.Add("Slider", "x10 y390 w350 h20 Range50-255 ToolTip", 255)
+OpacityValue := gui1.Add("Text", "x370 y392 w50", "100%")
+gui1.Add("Button", "x10 y420 w60 h25", "50%").OnEvent("Click", (*) => SetOpacity(127))
+gui1.Add("Button", "x80 y420 w60 h25", "75%").OnEvent("Click", (*) => SetOpacity(191))
+gui1.Add("Button", "x150 y420 w60 h25", "100%").OnEvent("Click", (*) => SetOpacity(255))
 
 ; === Position & Style Controls ===
-posGroup := gui1.Add("GroupBox", "x10 y440 w450 h125", "Position & Style")
-chkAlwaysOnTop := gui1.Add("Checkbox", "x20 y465", "Always on Top")
-btnSavePos := gui1.Add("Button", "x150 y460 w100 h25", "Save Position")
-btnRestorePos := gui1.Add("Button", "x260 y460 w100 h25", "Restore Position")
-gui1.Add("Text", "x20 y500", "Quick Layouts:")
-btnLayoutLeft := gui1.Add("Button", "x110 y495 w70 h25", "Left Half")
-btnLayoutRight := gui1.Add("Button", "x190 y495 w70 h25", "Right Half")
-btnLayoutCenter := gui1.Add("Button", "x270 y495 w70 h25", "Center")
-btnLayoutMaximize := gui1.Add("Button", "x350 y495 w70 h25", "Maximize")
+posGroup := gui1.Add("GroupBox", "x10 y460 w450 h85", "General Controls")
+btnAlwaysOnTop := gui1.Add("Button", "x20 y485 w110 h25", "Always on Top")
+btnBorderless := gui1.Add("Button", "x140 y485 w110 h25", "Toggle Borderless")
+gui1.Add("Text", "x20 y520", "Quick Layouts:")
+btnLayoutLeft := gui1.Add("Button", "x110 y515 w70 h25", "Left Half")
+btnLayoutRight := gui1.Add("Button", "x190 y515 w70 h25", "Right Half")
+btnLayoutCenter := gui1.Add("Button", "x270 y515 w70 h25", "Center")
+btnLayoutMaximize := gui1.Add("Button", "x350 y515 w70 h25", "Maximize")
+
+; === Manual Position & Size ===
+manGroup := gui1.Add("GroupBox", "x10 y555 w450 h85", "Manual Position & Size")
+gui1.Add("Text", "x20 y580", "X:")
+editX := gui1.Add("Edit", "x40 y575 w60 h25 Number vEditX")
+gui1.Add("Text", "x110 y580", "Y:")
+editY := gui1.Add("Edit", "x130 y575 w60 h25 Number vEditY")
+gui1.Add("Text", "x200 y580", "W:")
+editW := gui1.Add("Edit", "x220 y575 w60 h25 Number vEditW")
+gui1.Add("Text", "x290 y580", "H:")
+editH := gui1.Add("Edit", "x310 y575 w60 h25 Number vEditH")
+btnApplyManual := gui1.Add("Button", "x380 y575 w80 h25", "Apply")
+
+; === Saved Profiles ===
+profGroup := gui1.Add("GroupBox", "x10 y650 w450 h60", "Position Profiles")
+ProfileList := gui1.Add("DropDownList", "x20 y670 w200 h25 vProfileList Choose1")
+btnLoadProfile := gui1.Add("Button", "x230 y668 w70 h25", "Load")
+btnSaveProfile := gui1.Add("Button", "x310 y668 w70 h25", "Save")
+btnDeleteProfile := gui1.Add("Button", "x390 y668 w70 h25", "Delete")
 
 ; Options
-chkRestoreOnExit := gui1.Add("Checkbox", "x10 y580 Checked", "Restore windows on exit")
+chkRestoreOnExit := gui1.Add("Checkbox", "x10 y725 Checked", "Restore windows on exit")
 
 ; Status bar
 StatusBar := gui1.Add("StatusBar",, "Ready | Select a window to begin")
@@ -64,19 +83,22 @@ MyListBox.OnEvent("DoubleClick", HighlightWindow)
 OpacitySlider.OnEvent("Change", ApplyOpacity)
 gui1.OnEvent("Close", GuiClose)
 gui1.OnEvent("Size", GuiSize)
-
-; === Position & Style Events ===
-chkAlwaysOnTop.OnEvent("Click", ToggleAlwaysOnTop)
-btnSavePos.OnEvent("Click", SavePosition)
-btnRestorePos.OnEvent("Click", RestorePosition)
+btnAlwaysOnTop.OnEvent("Click", ToggleAlwaysOnTop)
 btnLayoutLeft.OnEvent("Click", (*) => SetWindowLayout("left"))
 btnLayoutRight.OnEvent("Click", (*) => SetWindowLayout("right"))
 btnLayoutCenter.OnEvent("Click", (*) => SetWindowLayout("center"))
 btnLayoutMaximize.OnEvent("Click", (*) => SetWindowLayout("maximize"))
+btnBorderless.OnEvent("Click", ToggleBorderless)
+btnApplyManual.OnEvent("Click", ApplyManualChanges)
+btnLoadProfile.OnEvent("Click", LoadProfile)
+btnSaveProfile.OnEvent("Click", SaveProfile)
+btnDeleteProfile.OnEvent("Click", DeleteProfile)
 
 OnMessage(0x0006, GuiActivateHandler) ; WM_ACTIVATE
 
-gui1.Show("w480 h620")
+LoadProfilesFromFile()
+gui1.Show("w480 h765")
+UpdateProfileList()
 RefreshListWithSelection()
 
 ; === Functions ===
@@ -93,15 +115,19 @@ CaptureOriginalState(hwnd) {
     if !ModifiedWindows.Has(hwnd) {
         originalOpacity := WinGetTransparent("ahk_id " hwnd)
         exStyle := WinGetExStyle("ahk_id " hwnd)
+        style := WinGetStyle("ahk_id " hwnd)
         originalClickThrough := (exStyle & 0x20) ? true : false
         originalAlwaysOnTop := (exStyle & 0x8) ? true : false
+        originalHasBorder := (style & 0x00C40000)
         WinGetPos(&origX, &origY, &origW, &origH, "ahk_id " hwnd)
         
         ModifiedWindows[hwnd] := {
             opacity: originalOpacity, 
             clickThrough: originalClickThrough,
             alwaysOnTop: originalAlwaysOnTop,
-            x: origX, y: origY, w: origW, h: origH
+            hasBorder: originalHasBorder,
+            x: origX, y: origY, w: origW, h: origH,
+            title: WinGetTitle("ahk_id " hwnd) ; <-- KLUCZOWA POPRAWKA
         }
     }
 }
@@ -111,15 +137,17 @@ GuiSize(GuiObj, MinMax, Width, Height) {
         return
     
     try {
-        MyListBox.Move(,, Width - 20, Height - 420)
+        MyListBox.Move(,, Width - 20, Height - 565)
         SelectedWindowText.Move(,, Width - 20)
         OpacitySlider.Move(,, Width - 130)
         OpacityValue.Move(Width - 110)
         posGroup.Move(,, Width - 20)
+        manGroup.Move(,, Width - 20)
+        profGroup.Move(,, Width - 20)
         chkRestoreOnExit.Move(10, Height - 40)
     }
     catch {
-        ; Ignore error
+        ; Ignore resize errors
     }
 }
 
@@ -128,6 +156,7 @@ GuiClose(*) {
     if chkRestoreOnExit.Value {
         RestoreAllWindows()
     }
+    SaveProfilesToFile()
     ExitApp()
 }
 
@@ -146,6 +175,9 @@ RestoreAllWindows() {
                 
                 WinSetExStyle(originalState.clickThrough ? "+0x20" : "-0x20", "ahk_id " hwnd)
                 WinSetAlwaysOnTop(originalState.alwaysOnTop, "ahk_id " hwnd)
+                if originalState.hasBorder {
+                    WinSetStyle("+0xC40000", "ahk_id " hwnd)
+                }
                 WinMove(originalState.x, originalState.y, originalState.w, originalState.h, "ahk_id " hwnd)
                 
                 if ModifiedWindows.Has(hwnd) {
@@ -154,7 +186,7 @@ RestoreAllWindows() {
                 count++
             }
             catch {
-                ; Ignore error
+                ; Ignore window-gone errors
             }
         }
     }
@@ -162,7 +194,7 @@ RestoreAllWindows() {
 }
 
 RefreshListWithSelection(*) {
-    global MyListBox, SelectedHwnd, SelectedWindowText, OpacitySlider, StatusBar
+    global MyListBox, SelectedHwnd, SelectedWindowText, OpacitySlider, StatusBar, gui1, editX, editY, editW, editH
     previousSelectedHwnd := SelectedHwnd
     MyListBox.Delete()
     listItems := []
@@ -170,12 +202,20 @@ RefreshListWithSelection(*) {
     for hwnd in WinGetList() {
         title := WinGetTitle("ahk_id " hwnd)
         style := WinGetStyle("ahk_id " hwnd)
-        if (title != "" && !WinGetMinMax("ahk_id " hwnd) && (style & 0x10000000)) {
-            displayTitle := title
-            if StrLen(displayTitle) > 60 {
-                displayTitle := SubStr(displayTitle, 1, 57) . "..."
+        if (title != "" && !WinGetMinMax("ahk_id " hwnd) && (style & 0x10000000) && (hwnd != gui1.Hwnd)) {
+            processName := ""
+            try {
+                processName := WinGetProcessName("ahk_id " hwnd)
             }
-            listItems.Push(displayTitle " - ID:" hwnd)
+            catch {
+                processName := "<Protected Process>"
+            }
+
+            displayTitle := title
+            if StrLen(displayTitle) > 50 {
+                displayTitle := SubStr(displayTitle, 1, 47) . "..."
+            }
+            listItems.Push("[" processName "] " displayTitle " - ID:" hwnd)
         }
     }
     
@@ -200,11 +240,17 @@ RefreshListWithSelection(*) {
     SelectedWindowText.Text := "No window selected`n`nSelect a window from the list above"
     OpacitySlider.Value := 255
     UpdateOpacityDisplay()
+    editX.Value := ""
+    editY.Value := ""
+    editW.Value := ""
+    editH.Value := ""
 }
 
 SetWindow(*) {
-    global SelectedHwnd, MyListBox, SelectedWindowText, IsClickThroughEnabled, OpacitySlider, StatusBar, chkAlwaysOnTop
-    if MyListBox.Text = "" || !RegExMatch(MyListBox.Text, "ID:(\d+)", &m) {
+    global SelectedHwnd, MyListBox, SelectedWindowText, IsClickThroughEnabled, OpacitySlider, StatusBar
+    global editX, editY, editW, editH
+    
+    if MyListBox.Text = "" || !RegExMatch(MyListBox.Text, "ID:(\d+)$", &m) {
         return
     }
     
@@ -213,12 +259,18 @@ SetWindow(*) {
     CaptureOriginalState(SelectedHwnd)
 
     title := WinGetTitle("ahk_id " SelectedHwnd)
+    processName := ""
+    try {
+        processName := WinGetProcessName("ahk_id " SelectedHwnd)
+    } catch {
+        processName := "<Protected Process>"
+    }
     
     displayTitle := title
     if StrLen(displayTitle) > 50 {
         displayTitle := SubStr(displayTitle, 1, 47) . "..."
     }
-    SelectedWindowText.Text := "Title: " displayTitle "`nHWND: " SelectedHwnd
+    SelectedWindowText.Text := "Title: " displayTitle "`nProcess: " processName "`nHWND: " SelectedHwnd
     
     currentOpacity := WinGetTransparent("ahk_id " SelectedHwnd)
     OpacitySlider.Value := (currentOpacity == "" ? 255 : currentOpacity)
@@ -226,8 +278,12 @@ SetWindow(*) {
     
     exStyle := WinGetExStyle("ahk_id " SelectedHwnd)
     IsClickThroughEnabled := (exStyle & 0x20)
-    
-    chkAlwaysOnTop.Value := (exStyle & 0x8)
+
+    WinGetPos(&x, &y, &w, &h, "ahk_id " SelectedHwnd)
+    editX.Value := x
+    editY.Value := y
+    editW.Value := w
+    editH.Value := h
     
     StatusBar.Text := "Selected: " displayTitle
 }
@@ -265,9 +321,14 @@ ToggleClickThrough(*) {
     }
     
     try {
-        WinSetExStyle("Toggle", "ahk_id " SelectedHwnd)
+        if IsClickThroughEnabled {
+            WinSetExStyle("-0x20", "ahk_id " SelectedHwnd)
+            StatusBar.Text := "Click-through DISABLED"
+        } else {
+            WinSetExStyle("+0x20", "ahk_id " SelectedHwnd)
+            StatusBar.Text := "Click-through ENABLED"
+        }
         IsClickThroughEnabled := !IsClickThroughEnabled
-        StatusBar.Text := "Click-through " (IsClickThroughEnabled ? "ENABLED" : "DISABLED")
     }
     catch as e {
         MsgBox("Failed to toggle click-through: " e.message, "Error", "Icon! 0x10")
@@ -293,6 +354,9 @@ ResetWindow(*) {
             
             WinSetExStyle(originalState.clickThrough ? "+0x20" : "-0x20", "ahk_id " SelectedHwnd)
             WinSetAlwaysOnTop(originalState.alwaysOnTop, "ahk_id " SelectedHwnd)
+            if originalState.hasBorder {
+                WinSetStyle("+0xC40000", "ahk_id " SelectedHwnd)
+            }
             WinMove(originalState.x, originalState.y, originalState.w, originalState.h, "ahk_id " SelectedHwnd)
 
             ModifiedWindows.Delete(SelectedHwnd)
@@ -309,7 +373,6 @@ ResetWindow(*) {
 }
 
 ResetAllWindows(*) {
-    global ModifiedWindows
     if ModifiedWindows.Count == 0 {
         MsgBox("No modified windows to reset.",, "Icon! 0x30")
         return
@@ -324,7 +387,7 @@ ResetAllWindows(*) {
 }
 
 HighlightWindow(*) {
-    global SelectedHwnd, StatusBar
+    global SelectedHwnd, StatusBar, gui1
     if !SelectedHwnd {
         MsgBox("Please select a window first.",, "Icon! 0x30")
         return
@@ -342,7 +405,8 @@ HighlightWindow(*) {
             Sleep(150)
         }
         WinSetTransparent(originalOpacity, "ahk_id " SelectedHwnd)
-        StatusBar.Text := "Window highlighted and activated"
+        WinActivate("ahk_id " gui1.Hwnd)
+        StatusBar.Text := "Window highlighted. Control Tool is now active."
     }
     catch as e {
         MsgBox("Failed to highlight window: " e.message, "Error", "Icon! 0x10")
@@ -350,9 +414,8 @@ HighlightWindow(*) {
 }
 
 ToggleAlwaysOnTop(*) {
-    global SelectedHwnd, StatusBar, chkAlwaysOnTop
+    global SelectedHwnd, StatusBar
     if !SelectedHwnd {
-        chkAlwaysOnTop.Value := !chkAlwaysOnTop.Value
         MsgBox("Please select a window first.",, "Icon! 0x30")
         return
     }
@@ -362,37 +425,18 @@ ToggleAlwaysOnTop(*) {
     StatusBar.Text := "Always on Top " (isNowOnTop ? "ENABLED" : "DISABLED")
 }
 
-SavePosition(*) {
-    global SelectedHwnd, SavedPositions, StatusBar
+ApplyManualChanges(*) {
+    global SelectedHwnd, StatusBar, editX, editY, editW, editH
     if !SelectedHwnd {
         MsgBox("Please select a window first.",, "Icon! 0x30")
         return
     }
-    
-    WinGetPos(&x, &y, &w, &h, "ahk_id " SelectedHwnd)
-    SavedPositions[SelectedHwnd] := {x: x, y: y, w: w, h: h}
-    StatusBar.Text := "Position saved: X=" x ", Y=" y ", W=" w ", H=" h
-}
-
-RestorePosition(*) {
-    global SelectedHwnd, SavedPositions, StatusBar
-    if !SelectedHwnd {
-        MsgBox("Please select a window first.",, "Icon! 0x30")
-        return
-    }
-    
-    if !SavedPositions.Has(SelectedHwnd) {
-        MsgBox("Position was not saved for this window yet.",, "Icon! 0x30")
-        return
-    }
-    
-    savedPos := SavedPositions[SelectedHwnd]
-    WinMove(savedPos.x, savedPos.y, savedPos.w, savedPos.h, "ahk_id " SelectedHwnd)
-    StatusBar.Text := "Position restored to: X=" savedPos.x ", Y=" savedPos.y
+    WinMove(editX.Value, editY.Value, editW.Value, editH.Value, "ahk_id " SelectedHwnd)
+    StatusBar.Text := "Position and size manually applied."
 }
 
 SetWindowLayout(layout) {
-    global SelectedHwnd, StatusBar
+    global SelectedHwnd, StatusBar, editX, editY, editW, editH
     if !SelectedHwnd {
         MsgBox("Please select a window first.",, "Icon! 0x30")
         return
@@ -405,18 +449,170 @@ SetWindowLayout(layout) {
 
     if (layout == "left") {
         WinMove(monX, monY, monWidth / 2, monHeight, "ahk_id " SelectedHwnd)
-        StatusBar.Text := "Window moved to the left half."
     } else if (layout == "right") {
         WinMove(monX + monWidth / 2, monY, monWidth / 2, monHeight, "ahk_id " SelectedHwnd)
-        StatusBar.Text := "Window moved to the right half."
     } else if (layout == "center") {
         WinGetPos(&x, &y, &w, &h, "ahk_id " SelectedHwnd)
         newX := monX + (monWidth - w) / 2
         newY := monY + (monHeight - h) / 2
         WinMove(newX, newY, , , "ahk_id " SelectedHwnd)
-        StatusBar.Text := "Window centered."
     } else if (layout == "maximize") {
         WinMaximize("ahk_id " SelectedHwnd)
-        StatusBar.Text := "Window maximized."
+    }
+    StatusBar.Text := "Layout applied: " . layout
+    
+    WinGetPos(&x, &y, &w, &h, "ahk_id " SelectedHwnd)
+    editX.Value := x
+    editY.Value := y
+    editW.Value := w
+    editH.Value := h
+}
+
+ToggleBorderless(*) {
+    global SelectedHwnd, StatusBar
+    if !SelectedHwnd {
+        MsgBox("Please select a window first.",, "Icon! 0x30")
+        return
+    }
+    CaptureOriginalState(SelectedHwnd)
+    WinSetStyle("^0xC40000", "ahk_id " SelectedHwnd)
+    StatusBar.Text := "Toggled borderless mode."
+}
+
+UpdateProfileList() {
+    global SavedPositions, ProfileList
+    ProfileList.Delete()
+    profileNames := []
+    for name in SavedPositions {
+        profileNames.Push(name)
+    }
+    if profileNames.Length > 0 {
+        ProfileList.Add(profileNames)
+        ProfileList.Choose(1)
+    }
+}
+
+SaveProfile(*) {
+    global SelectedHwnd, SavedPositions, StatusBar
+    if !SelectedHwnd {
+        MsgBox("Please select a window to save its state.",, "Icon! 0x30")
+        return
+    }
+    
+    profileName := InputBox("Enter a name for this window state profile:", "Save Profile").Value
+    if (profileName = "") {
+        return
+    }
+    
+    WinGetPos(&x, &y, &w, &h, "ahk_id " SelectedHwnd)
+    opacity := WinGetTransparent("ahk_id " SelectedHwnd)
+    opacity := (opacity = "" ? 255 : opacity)
+    exStyle := WinGetExStyle("ahk_id " SelectedHwnd)
+    style := WinGetStyle("ahk_id " SelectedHwnd)
+    
+    SavedPositions[profileName] := {
+        x: x, y: y, w: w, h: h,
+        opacity: opacity,
+        clickThrough: (exStyle & 0x20) ? true : false,
+        alwaysOnTop: (exStyle & 0x8) ? true : false,
+        hasBorder: (style & 0x00C40000) ? true : false
+    }
+    StatusBar.Text := "Profile '" profileName "' saved."
+    UpdateProfileList()
+}
+
+LoadProfile(*) {
+    global SelectedHwnd, SavedPositions, StatusBar, ProfileList, editX, editY, editW, editH, OpacitySlider
+    if !SelectedHwnd {
+        MsgBox("Please select a window to apply the profile to.",, "Icon! 0x30")
+        return
+    }
+    
+    profileName := ProfileList.Text
+    if (profileName = "" || !SavedPositions.Has(profileName)) {
+        MsgBox("Please select a valid profile from the list.",, "Icon! 0x30")
+        return
+    }
+    
+    savedState := SavedPositions[profileName]
+    
+    WinMove(savedState.x, savedState.y, savedState.w, savedState.h, "ahk_id " SelectedHwnd)
+    WinSetTransparent(savedState.opacity, "ahk_id " SelectedHwnd)
+    WinSetExStyle(savedState.clickThrough ? "+0x20" : "-0x20", "ahk_id " SelectedHwnd)
+    WinSetAlwaysOnTop(savedState.alwaysOnTop, "ahk_id " SelectedHwnd)
+    WinSetStyle(savedState.hasBorder ? "+0xC40000" : "-0xC40000", "ahk_id " SelectedHwnd)
+    
+    editX.Value := savedState.x
+    editY.Value := savedState.y
+    editW.Value := savedState.w
+    editH.Value := savedState.h
+    OpacitySlider.Value := savedState.opacity
+    UpdateOpacityDisplay()
+    
+    StatusBar.Text := "Profile '" profileName "' loaded."
+}
+
+DeleteProfile(*) {
+    global SavedPositions, StatusBar, ProfileList
+    profileName := ProfileList.Text
+    if (profileName = "" || !SavedPositions.Has(profileName)) {
+        MsgBox("Please select a valid profile to delete.",, "Icon! 0x30")
+        return
+    }
+    
+    result := MsgBox("Are you sure you want to delete the profile '" profileName "'?",, "YesNo Icon? 0x20")
+    if result == "Yes" {
+        SavedPositions.Delete(profileName)
+        StatusBar.Text := "Profile '" profileName "' deleted."
+        UpdateProfileList()
+    }
+}
+
+LoadProfilesFromFile() {
+    global SavedPositions, ProfileFile
+    if !FileExist(ProfileFile) {
+        return
+    }
+    
+    sections := []
+    fileContent := FileRead(ProfileFile)
+    Loop Parse, fileContent, "`n", "`r" {
+        if RegExMatch(A_LoopField, "^\s*\[(.*)\]\s*$", &match) {
+            sections.Push(match[1])
+        }
+    }
+
+    for index, profileName in sections
+    {
+        if (profileName = "")
+            continue
+
+        SavedPositions[profileName] := {
+            x: IniRead(ProfileFile, profileName, "x", 0),
+            y: IniRead(ProfileFile, profileName, "y", 0),
+            w: IniRead(ProfileFile, profileName, "w", 800),
+            h: IniRead(ProfileFile, profileName, "h", 600),
+            opacity: IniRead(ProfileFile, profileName, "opacity", 255),
+            clickThrough: IniRead(ProfileFile, profileName, "clickThrough", false),
+            alwaysOnTop: IniRead(ProfileFile, profileName, "alwaysOnTop", false),
+            hasBorder: IniRead(ProfileFile, profileName, "hasBorder", true)
+        }
+    }
+}
+
+SaveProfilesToFile() {
+    global SavedPositions, ProfileFile
+    if FileExist(ProfileFile) {
+        FileDelete(ProfileFile)
+    }
+    for profileName, state in SavedPositions {
+        IniWrite(state.x, ProfileFile, profileName, "x")
+        IniWrite(state.y, ProfileFile, profileName, "y")
+        IniWrite(state.w, ProfileFile, profileName, "w")
+        IniWrite(state.h, ProfileFile, profileName, "h")
+        IniWrite(state.opacity, ProfileFile, profileName, "opacity")
+        IniWrite(state.clickThrough, ProfileFile, profileName, "clickThrough")
+        IniWrite(state.alwaysOnTop, ProfileFile, profileName, "alwaysOnTop")
+        IniWrite(state.hasBorder, ProfileFile, profileName, "hasBorder")
     }
 }

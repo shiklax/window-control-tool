@@ -1,0 +1,6 @@
+# Auto-generated files by the Window Control Tool script
+WindowProfiles.ini
+
+# AutoHotkey specific files (optional but good practice)
+*.ahk~
+*.bak
