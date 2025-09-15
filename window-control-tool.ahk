@@ -1,6 +1,6 @@
 ﻿#SingleInstance Force
 Persistent
-
+#Include "MathEvaluator.ahk"
 ; === Global variables ===
 global SelectedHwnd := 0
 global IsClickThroughEnabled := false
@@ -50,13 +50,13 @@ btnLayoutMaximize := gui1.Add("Button", "x350 y515 w70 h25", "Maximize")
 ; === Manual Position & Size ===
 manGroup := gui1.Add("GroupBox", "x10 y555 w450 h85", "Manual Position & Size")
 gui1.Add("Text", "x20 y580", "X:")
-editX := gui1.Add("Edit", "x40 y575 w60 h25 Number vEditX")
+editX := gui1.Add("Edit", "x40 y575 w60 h25 vEditX")
 gui1.Add("Text", "x110 y580", "Y:")
-editY := gui1.Add("Edit", "x130 y575 w60 h25 Number vEditY")
+editY := gui1.Add("Edit", "x130 y575 w60 h25 vEditY")
 gui1.Add("Text", "x200 y580", "W:")
-editW := gui1.Add("Edit", "x220 y575 w60 h25 Number vEditW")
+editW := gui1.Add("Edit", "x220 y575 w60 h25 vEditW")
 gui1.Add("Text", "x290 y580", "H:")
-editH := gui1.Add("Edit", "x310 y575 w60 h25 Number vEditH")
+editH := gui1.Add("Edit", "x310 y575 w60 h25 vEditH")
 btnApplyManual := gui1.Add("Button", "x380 y575 w80 h25", "Apply")
 
 ; === Saved Profiles ===
@@ -431,9 +431,51 @@ ApplyManualChanges(*) {
         MsgBox("Please select a window first.",, "Icon! 0x30")
         return
     }
-    WinMove(editX.Value, editY.Value, editW.Value, editH.Value, "ahk_id " SelectedHwnd)
-    StatusBar.Text := "Position and size manually applied."
+
+    ; Get current window position for relative calculations
+    WinGetPos(&currentX, &currentY, &currentW, &currentH, "ahk_id " SelectedHwnd)
+
+    ; Evaluate expressions or use current values if empty
+    x := editX.Value != "" ? EvalExpr(editX.Value) : currentX
+    y := editY.Value != "" ? EvalExpr(editY.Value) : currentY
+    w := editW.Value != "" ? EvalExpr(editW.Value) : currentW
+    h := editH.Value != "" ? EvalExpr(editH.Value) : currentH
+
+    ; Check if any evaluation failed
+    if (x = "" || y = "" || w = "" || h = "") {
+        MsgBox("One or more values is not a valid number or expression.`n`nExamples:`n• 100`n• 300+50`n• 200*2`n• 1920/2`n• (800+200)/2", "Error", "Icon! 0x10")
+        return
+    }
+
+    ; Convert to integers (WinMove requires integers)
+    x := Round(x)
+    y := Round(y)
+    w := Round(w)
+    h := Round(h)
+
+    ; Validate dimensions (must be positive)
+    if (w <= 0 || h <= 0) {
+        MsgBox("Width and height must be positive numbers.", "Error", "Icon! 0x10")
+        return
+    }
+
+    ; Apply new position and size
+    try {
+        WinMove(x, y, w, h, "ahk_id " SelectedHwnd)
+        StatusBar.Text := "Position and size applied: " x "," y " " w "x" h
+        
+        ; Update the edit boxes with the actual values
+        editX.Value := x
+        editY.Value := y
+        editW.Value := w
+        editH.Value := h
+        
+    } catch as e {
+        MsgBox("Failed to apply changes: " e.message, "Error", "Icon! 0x10")
+    }
 }
+
+
 
 SetWindowLayout(layout) {
     global SelectedHwnd, StatusBar, editX, editY, editW, editH
