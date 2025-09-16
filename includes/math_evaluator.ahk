@@ -1,6 +1,6 @@
-; MathEvaluator.ahk
+; math_evaluator.ahk
 ; Mathematical expression evaluator library for AutoHotkey v2
-; Usage: #Include "MathEvaluator.ahk"
+; Usage: #Include "math_evaluator.ahk"
 
 /**
  * Evaluates a mathematical expression string
