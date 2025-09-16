@@ -61,7 +61,7 @@ btnApplyManual := gui1.Add("Button", "x380 y575 w80 h25", "Apply")
 
 ; === Saved Profiles ===
 profGroup := gui1.Add("GroupBox", "x10 y650 w450 h60", "Position Profiles")
-ProfileList := gui1.Add("DropDownList", "x20 y670 w200 h25 vProfileList Choose1")
+ProfileList := gui1.Add("DropDownList", "x20 y670 w200 h150 vProfileList Choose1")
 btnLoadProfile := gui1.Add("Button", "x230 y668 w70 h25", "Load")
 btnSaveProfile := gui1.Add("Button", "x310 y668 w70 h25", "Save")
 btnDeleteProfile := gui1.Add("Button", "x390 y668 w70 h25", "Delete")
@@ -381,7 +381,6 @@ ResetAllWindows(*) {
     result := MsgBox("This will reset ALL " ModifiedWindows.Count " modified windows to their original state.`n`nContinue?",, "YesNo Icon! 0x20")
     if result == "Yes" {
         RestoreAllWindows()
-        MsgBox("All modified windows have been reset.",, "Icon! 0x40")
         RefreshListWithSelection()
     }
 }
@@ -559,6 +558,9 @@ SaveProfile(*) {
         alwaysOnTop: (exStyle & 0x8) ? true : false,
         hasBorder: (style & 0x00C40000) ? true : false
     }
+
+    SaveProfilesToFile() ; <-- KLUCZOWA ZMIANA: Zapisz zmiany do pliku natychmiast
+
     StatusBar.Text := "Profile '" profileName "' saved."
     UpdateProfileList()
 }
@@ -605,6 +607,8 @@ DeleteProfile(*) {
     result := MsgBox("Are you sure you want to delete the profile '" profileName "'?",, "YesNo Icon? 0x20")
     if result == "Yes" {
         SavedPositions.Delete(profileName)
+        SaveProfilesToFile() ; <-- KLUCZOWA ZMIANA: Zapisz zmiany do pliku natychmiast
+
         StatusBar.Text := "Profile '" profileName "' deleted."
         UpdateProfileList()
     }
