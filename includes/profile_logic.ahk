@@ -93,6 +93,35 @@ DeleteProfile(*) {
     }
 }
 
+BlacklistSelectedWindow(*) {
+    global SelectedHwnd, BlacklistFile
+    if !SelectedHwnd {
+        MsgBox("Please select a window to hide first.",, "Icon! 0x30")
+        return
+    }
+    
+    try {
+        ; Pobieramy obie potrzebne informacje: nazwę procesu i pełny tytuł okna
+        processName := WinGetProcessName("ahk_id " SelectedHwnd)
+        windowTitle := WinGetTitle("ahk_id " SelectedHwnd)
+
+        if (processName = "" || windowTitle = "")
+            return
+        
+        ; Tworzymy unikalny, precyzyjny klucz, łącząc obie informacje
+        ; Używamy znaku "|" jako separatora
+        blacklistKey := processName . "|" . windowTitle
+        
+        ; Zapisujemy ten nowy, unikalny klucz do pliku
+        IniWrite("1", BlacklistFile, "Blacklist", blacklistKey)
+        
+        ; Odświeżamy listę, aby pokazać natychmiastowy efekt
+        RefreshListWithSelection()
+    } catch {
+        MsgBox("Failed to get window details for blacklisting.", "Error", "Icon! 0x10")
+    }
+}
+
 LoadProfilesFromFile() {
     global SavedPositions, ProfileFile
     if !FileExist(ProfileFile) {
@@ -109,7 +138,7 @@ LoadProfilesFromFile() {
 
     for index, profileName in sections
     {
-        if (profileName = "")
+        if (profileName = "" || profileName = "Blacklist") ; <-- Dodajmy zabezpieczenie
             continue
 
         SavedPositions[profileName] := {

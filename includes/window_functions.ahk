@@ -65,7 +65,23 @@ RestoreAllWindows() {
 }
 
 RefreshListWithSelection(*) {
-    global MyListBox, SelectedHwnd, SelectedWindowText, OpacitySlider, StatusBar, gui1, editX, editY, editW, editH
+    global MyListBox, SelectedHwnd, SelectedWindowText, OpacitySlider, StatusBar, gui1, editX, editY, editW, editH, BlacklistFile
+
+    blacklist := Map()
+    try {
+        keys := IniRead(BlacklistFile, "Blacklist")
+        Loop Parse, keys, "`n", "`r" {
+            if (A_LoopField != "") {
+                keyParts := StrSplit(A_LoopField, "=")
+                blacklist[keyParts[1]] := true
+            }
+        }
+    }
+    catch
+    {
+        ; Ignorujemy błąd, jeśli plik lub sekcja nie istnieje.
+    }
+
     previousSelectedHwnd := SelectedHwnd
     MyListBox.Delete()
     listItems := []
@@ -73,32 +89,42 @@ RefreshListWithSelection(*) {
     for hwnd in WinGetList() {
         title := WinGetTitle("ahk_id " hwnd)
         style := WinGetStyle("ahk_id " hwnd)
-        if (title != "" && !WinGetMinMax("ahk_id " hwnd) && (style & 0x10000000) && (hwnd != gui1.Hwnd)) {
+
+        if (title != "" && WinGetMinMax("ahk_id " hwnd) != -1 && (style & 0x10000000) && (hwnd != gui1.Hwnd)) {
             processName := ""
+            
+            ; === POPRAWNIE SFORMATOWANY BLOK TRY...CATCH ===
             try {
                 processName := WinGetProcessName("ahk_id " hwnd)
             }
-            catch {
+            catch
+            {
                 processName := "<Protected Process>"
             }
 
-            displayTitle := title
-            if StrLen(displayTitle) > 50 {
-                displayTitle := SubStr(displayTitle, 1, 47) . "..."
+            blacklistKey := processName . "|" . title
+            
+            if !blacklist.Has(blacklistKey) {
+                displayTitle := title
+                if StrLen(displayTitle) > 50 {
+                    displayTitle := SubStr(displayTitle, 1, 47) . "..."
+                }
+                listItems.Push("[" processName "] " displayTitle " - ID:" hwnd)
             }
-            listItems.Push("[" processName "] " displayTitle " - ID:" hwnd)
         }
     }
     
     if (listItems.Length == 0) {
-        StatusBar.Text := "No valid windows found"
-        return
+        MyListBox.Add(["No valid windows found."])
+        StatusBar.Text := "No valid windows found or all are hidden"
+    }
+    else
+    {
+        MyListBox.Add(listItems)
+        StatusBar.Text := "Found " listItems.Length " windows"
     }
     
-    MyListBox.Add(listItems)
-    StatusBar.Text := "Found " listItems.Length " windows"
-    
-    if (previousSelectedHwnd && WinExist("ahk_id " previousSelectedHwnd)) {
+    if (previousSelectedHwnd && WinGetTitle("ahk_id " previousSelectedHwnd) != "") { ; Dodatkowe zabezpieczenie
         for index, itemText in listItems {
             if InStr(itemText, "ID:" previousSelectedHwnd) {
                 MyListBox.Choose(index)
@@ -116,11 +142,11 @@ RefreshListWithSelection(*) {
     editW.Value := ""
     editH.Value := ""
 }
-
 SetWindow(*) {
     global SelectedHwnd, MyListBox, SelectedWindowText, OpacitySlider, StatusBar, editX, editY, editW, editH
     
-    if MyListBox.Text = "" || !RegExMatch(MyListBox.Text, "ID:(\d+)$", &m) {
+    currentSelection := MyListBox.Text
+    if (currentSelection = "" || currentSelection = "No valid windows found." || !RegExMatch(currentSelection, "ID:(\d+)$", &m)) {
         return
     }
     
@@ -217,11 +243,12 @@ ResetWindow(*) {
             }
             
             WinSetExStyle(originalState.clickThrough ? "+0x20" : "-0x20", "ahk_id " SelectedHwnd)
-            WinSetAlwaysOnTop(originalState.alwaysOnTop, "ahk_id " SelectedHwnd)
+            WinSetAlwaysOnTop(originalState.alwaysOnTop, "ahk_id " SelectedHwnd) ; <-- POPRAWKA (było hwnd)
+            
             if originalState.hasBorder {
-                WinSetStyle("+0xC40000", "ahk_id " SelectedHwnd)
+                WinSetStyle("+0xC40000", "ahk_id " SelectedHwnd) ; <-- POPRAWKA (było hwnd)
             }
-            WinMove(originalState.x, originalState.y, originalState.w, originalState.h, "ahk_id " SelectedHwnd)
+            WinMove(originalState.x, originalState.y, originalState.w, originalState.h, "ahk_id " SelectedHwnd) ; <-- POPRAWKA (było hwnd)
 
             ModifiedWindows.Delete(SelectedHwnd)
             SetWindow()

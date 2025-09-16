@@ -10,6 +10,7 @@ global ModifiedWindows := Map()
 global SavedPositions := Map()
 global gui1
 global ProfileFile := A_ScriptDir . "\window_profiles.ini"
+global BlacklistFile := A_ScriptDir . "\window_blacklist.ini"
 
 ; === Ładowanie modułów ===
 #Include "%A_ScriptDir%\includes\math_evaluator.ahk"
@@ -40,6 +41,7 @@ btnApplyManual.OnEvent("Click", ApplyManualChanges)
 btnLoadProfile.OnEvent("Click", LoadProfile)
 btnSaveProfile.OnEvent("Click", SaveProfile)
 btnDeleteProfile.OnEvent("Click", DeleteProfile)
+btnHide.OnEvent("Click", BlacklistSelectedWindow)
 
 OnMessage(0x0006, GuiActivateHandler) ; WM_ACTIVATE
 

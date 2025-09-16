@@ -5,7 +5,7 @@
 CreateGUI() {
     ; Deklarujemy zmienne jako globalne, aby były dostępne
     ; w głównym skrypcie i innych modułach
-    global gui1, MyListBox, btnRefresh, btnHighlight, SelectedWindowText
+    global gui1, MyListBox, btnRefresh, btnHighlight, btnHide, SelectedWindowText
     global btnReset, btnResetAll, btnAlwaysOnTop, btnBorderless, btnClickThrough
     global OpacitySlider, OpacityValue, btnLayoutLeft, btnLayoutRight, btnLayoutCenter
     global btnLayoutMaximize, editX, editY, editW, editH, btnApplyManual
@@ -23,6 +23,7 @@ CreateGUI() {
 
     btnRefresh := gui1.Add("Button", "x20 y310 w80 h25", "Refresh")
     btnHighlight := gui1.Add("Button", "x110 y310 w80 h25", "Highlight")
+    btnHide := gui1.Add("Button", "x200 y310 w80 h25", "Hide")
     
     gui1.Add("Text", "x20 y355", "📊 Current window:")
     SelectedWindowText := gui1.Add("Text", "x20 y375 w260 h80 Border", "No window selected`n`nSelect a window from the list above")
