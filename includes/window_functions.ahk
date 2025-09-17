@@ -56,7 +56,8 @@ RestoreAllWindows() {
                 }
                 count++
             }
-            catch {
+            catch
+            {
                 ; Ignore window-gone errors
             }
         }
@@ -65,7 +66,10 @@ RestoreAllWindows() {
 }
 
 RefreshListWithSelection(*) {
-    global MyListBox, SelectedHwnd, SelectedWindowText, OpacitySlider, StatusBar, gui1, editX, editY, editW, editH, BlacklistFile
+    global MyListBox, SelectedHwnd, SelectedWindowText, OpacitySlider, StatusBar, gui1, editX, editY, editW, editH
+    global BlacklistFile, ModifiedWindows
+
+    MAX_PREFIX_LENGTH := 50
 
     blacklist := Map()
     try {
@@ -79,7 +83,7 @@ RefreshListWithSelection(*) {
     }
     catch
     {
-        ; Ignorujemy błąd, jeśli plik lub sekcja nie istnieje.
+        ; Ignoruj błąd
     }
 
     previousSelectedHwnd := SelectedHwnd
@@ -92,8 +96,6 @@ RefreshListWithSelection(*) {
 
         if (title != "" && WinGetMinMax("ahk_id " hwnd) != -1 && (style & 0x10000000) && (hwnd != gui1.Hwnd)) {
             processName := ""
-            
-            ; === POPRAWNIE SFORMATOWANY BLOK TRY...CATCH ===
             try {
                 processName := WinGetProcessName("ahk_id " hwnd)
             }
@@ -105,11 +107,35 @@ RefreshListWithSelection(*) {
             blacklistKey := processName . "|" . title
             
             if !blacklist.Has(blacklistKey) {
-                displayTitle := title
-                if StrLen(displayTitle) > 50 {
-                    displayTitle := SubStr(displayTitle, 1, 47) . "..."
+                indicators := ""
+                if ModifiedWindows.Has(hwnd) {
+                    currentExStyle := WinGetExStyle("ahk_id " hwnd)
+                    currentStyle := WinGetStyle("ahk_id " hwnd)
+                    currentOpacity := WinGetTransparent("ahk_id " hwnd)
+                    currentOpacity := (currentOpacity = "" ? 255 : currentOpacity)
+
+                    if (currentExStyle & 0x8)
+                        indicators .= " 📌"
+                    if (currentOpacity < 255)
+                        indicators .= " 💧"
+                    if !(currentStyle & 0x00C40000)
+                        indicators .= " 🔳"
+                    if (currentExStyle & 0x20)
+                        indicators .= " 🖱️🚫"
                 }
-                listItems.Push("[" processName "] " displayTitle " - ID:" hwnd)
+
+                prefix := "[" . processName . "] " . title
+
+                if StrLen(prefix) > MAX_PREFIX_LENGTH {
+                    prefix := SubStr(prefix, 1, MAX_PREFIX_LENGTH - 3) . "..."
+                }
+
+                finalText := prefix
+                if (indicators != "")
+                    finalText .= " |" . indicators
+                finalText .= " - ID:" . hwnd
+
+                listItems.Push(finalText)
             }
         }
     }
@@ -124,7 +150,7 @@ RefreshListWithSelection(*) {
         StatusBar.Text := "Found " listItems.Length " windows"
     }
     
-    if (previousSelectedHwnd && WinExist("ahk_id " previousSelectedHwnd)){ ; Dodatkowe zabezpieczenie
+    if (previousSelectedHwnd && WinExist("ahk_id " previousSelectedHwnd)) {
         for index, itemText in listItems {
             if InStr(itemText, "ID:" previousSelectedHwnd) {
                 MyListBox.Choose(index)
@@ -142,6 +168,7 @@ RefreshListWithSelection(*) {
     editW.Value := ""
     editH.Value := ""
 }
+
 SetWindow(*) {
     global SelectedHwnd, MyListBox, SelectedWindowText, OpacitySlider, StatusBar, editX, editY, editW, editH
     
@@ -154,20 +181,8 @@ SetWindow(*) {
     
     CaptureOriginalState(SelectedHwnd)
 
-    title := WinGetTitle("ahk_id " SelectedHwnd)
-    processName := ""
-    try {
-        processName := WinGetProcessName("ahk_id " SelectedHwnd)
-    } catch {
-        processName := "<Protected Process>"
-    }
-    
-    displayTitle := title
-    if StrLen(displayTitle) > 50 {
-        displayTitle := SubStr(displayTitle, 1, 47) . "..."
-    }
-    SelectedWindowText.Text := "Title: " displayTitle "`nProcess: " processName "`nHWND: " SelectedHwnd
-    
+    UpdateStatusInfo(SelectedHwnd)
+
     currentOpacity := WinGetTransparent("ahk_id " SelectedHwnd)
     OpacitySlider.Value := (currentOpacity == "" ? 255 : currentOpacity)
     UpdateOpacityDisplay()
@@ -178,7 +193,8 @@ SetWindow(*) {
     editW.Value := w
     editH.Value := h
     
-    StatusBar.Text := "Selected: " displayTitle
+    title := WinGetTitle("ahk_id " SelectedHwnd)
+    StatusBar.Text := "Selected: " . title
 }
 
 SetOpacity(value) {
@@ -198,12 +214,13 @@ ApplyOpacity(*) {
     if !SelectedHwnd {
         return
     }
-    
+    CaptureOriginalState(SelectedHwnd)
     WinSetTransparent(OpacitySlider.Value, "ahk_id " SelectedHwnd)
     UpdateOpacityDisplay()
     
     percentage := Round((OpacitySlider.Value / 255) * 100)
-    StatusBar.Text := "Opacity set to " percentage "% for selected window"
+    StatusBar.Text := "Opacity set to " . percentage . "% for selected window"
+    UpdateStatusInfo(SelectedHwnd)
 }
 
 ToggleClickThrough(*) {
@@ -212,15 +229,17 @@ ToggleClickThrough(*) {
         MsgBox("Please select a window first.",, "Icon! 0x30")
         return
     }
-    
+    CaptureOriginalState(SelectedHwnd)
     try {
         WinSetExStyle("+0x80000", "ahk_id " SelectedHwnd)
         WinSetExStyle("^0x20", "ahk_id " SelectedHwnd)
         
         isNowClickThrough := (WinGetExStyle("ahk_id " SelectedHwnd) & 0x20)
-        StatusBar.Text := "Click-through " (isNowClickThrough ? "ENABLED" : "DISABLED")
+        StatusBar.Text := "Click-through " . (isNowClickThrough ? "ENABLED" : "DISABLED")
+        UpdateStatusInfo(SelectedHwnd)
     }
-    catch as e {
+    catch as e
+    {
         MsgBox("Failed to toggle click-through: " e.message, "Error", "Icon! 0x10")
     }
 }
@@ -243,12 +262,12 @@ ResetWindow(*) {
             }
             
             WinSetExStyle(originalState.clickThrough ? "+0x20" : "-0x20", "ahk_id " SelectedHwnd)
-            WinSetAlwaysOnTop(originalState.alwaysOnTop, "ahk_id " SelectedHwnd) ; <-- POPRAWKA (było hwnd)
+            WinSetAlwaysOnTop(originalState.alwaysOnTop, "ahk_id " SelectedHwnd)
             
             if originalState.hasBorder {
-                WinSetStyle("+0xC40000", "ahk_id " SelectedHwnd) ; <-- POPRAWKA (było hwnd)
+                WinSetStyle("+0xC40000", "ahk_id " SelectedHwnd)
             }
-            WinMove(originalState.x, originalState.y, originalState.w, originalState.h, "ahk_id " SelectedHwnd) ; <-- POPRAWKA (było hwnd)
+            WinMove(originalState.x, originalState.y, originalState.w, originalState.h, "ahk_id " SelectedHwnd)
 
             ModifiedWindows.Delete(SelectedHwnd)
             SetWindow()
@@ -258,7 +277,8 @@ ResetWindow(*) {
             StatusBar.Text := "Window was not modified."
         }
     }
-    catch as e {
+    catch as e
+    {
         MsgBox("Failed to reset window: " e.message, "Error", "Icon! 0x10")
     }
 }
@@ -299,7 +319,8 @@ HighlightWindow(*) {
         WinActivate("ahk_id " gui1.Hwnd)
         StatusBar.Text := "Window highlighted. Control Tool is now active."
     }
-    catch as e {
+    catch as e
+    {
         MsgBox("Failed to highlight window: " e.message, "Error", "Icon! 0x10")
     }
 }
@@ -310,10 +331,11 @@ ToggleAlwaysOnTop(*) {
         MsgBox("Please select a window first.",, "Icon! 0x30")
         return
     }
-    
+    CaptureOriginalState(SelectedHwnd)
     WinSetAlwaysOnTop(-1, "ahk_id " SelectedHwnd)
     isNowOnTop := (WinGetExStyle("ahk_id " SelectedHwnd) & 0x8)
-    StatusBar.Text := "Always on Top " (isNowOnTop ? "ENABLED" : "DISABLED")
+    StatusBar.Text := "Always on Top " . (isNowOnTop ? "ENABLED" : "DISABLED")
+    UpdateStatusInfo(SelectedHwnd)
 }
 
 ApplyManualChanges(*) {
@@ -322,7 +344,7 @@ ApplyManualChanges(*) {
         MsgBox("Please select a window first.",, "Icon! 0x30")
         return
     }
-
+    CaptureOriginalState(SelectedHwnd)
     WinGetPos(&currentX, &currentY, &currentW, &currentH, "ahk_id " SelectedHwnd)
 
     x := editX.Value != "" ? EvalExpr(editX.Value) : currentX
@@ -345,6 +367,7 @@ ApplyManualChanges(*) {
 
     try {
         WinMove(x, y, w, h, "ahk_id " SelectedHwnd)
+        
         StatusBar.Text := "Position and size applied: " x "," y " " w "x" h
         
         editX.Value := x
@@ -352,7 +375,8 @@ ApplyManualChanges(*) {
         editW.Value := w
         editH.Value := h
         
-    } catch as e {
+    } catch as e
+    {
         MsgBox("Failed to apply changes: " e.message, "Error", "Icon! 0x10")
     }
 }
@@ -363,7 +387,7 @@ SetWindowLayout(layout) {
         MsgBox("Please select a window first.",, "Icon! 0x30")
         return
     }
-    
+    CaptureOriginalState(SelectedHwnd)
     primaryMonitor := MonitorGetPrimary()
     MonitorGetWorkArea(primaryMonitor, &monX, &monY, &monRight, &monBottom)
     monWidth := monRight - monX
@@ -398,4 +422,60 @@ ToggleBorderless(*) {
     CaptureOriginalState(SelectedHwnd)
     WinSetStyle("^0xC40000", "ahk_id " SelectedHwnd)
     StatusBar.Text := "Toggled borderless mode."
+    UpdateStatusInfo(SelectedHwnd)
+}
+
+UpdateStatusInfo(hwnd) {
+    global SelectedWindowText
+
+    if !WinExist("ahk_id " hwnd)
+        return
+
+    ; Maksymalna długość tytułu w tym konkretnym polu
+    MAX_INFO_TITLE_LENGTH := 45
+
+    fullTitle := WinGetTitle("ahk_id " hwnd)
+    processName := ""
+    try {
+        processName := WinGetProcessName("ahk_id " hwnd)
+    } catch {
+        processName := "<Protected Process>"
+    }
+
+    ; Skracamy tytuł, jeśli jest za długi
+    displayTitle := fullTitle
+    if StrLen(displayTitle) > MAX_INFO_TITLE_LENGTH {
+        displayTitle := SubStr(displayTitle, 1, MAX_INFO_TITLE_LENGTH - 3) . "..."
+    }
+
+    currentExStyle := WinGetExStyle("ahk_id " hwnd)
+    currentStyle := WinGetStyle("ahk_id " hwnd)
+    currentOpacityVal := WinGetTransparent("ahk_id " hwnd)
+    currentOpacityVal := (currentOpacityVal = "" ? 255 : currentOpacityVal)
+
+    alwaysOnTopStatus := (currentExStyle & 0x8) ? "✅ Always on Top" : "❌ Always on Top"
+    borderlessStatus := !(currentStyle & 0x00C40000) ? "✅ Borderless" : "❌ Borderless"
+    clickThroughStatus := (currentExStyle & 0x20) ? "✅ Click-Through" : "❌ Click-Through"
+    
+    opacityPercent := Round((currentOpacityVal / 255) * 100)
+    transparencyStatus := (opacityPercent < 100) ? "💧 Transparency: " . opacityPercent . "%" : "❌ Transparency"
+
+    statusText := ""
+    statusText .= "Title: " . displayTitle . "`n" ; <-- Używamy skróconego tytułu
+    statusText .= "Process: " . processName . "`n"
+    statusText .= "HWND: " . hwnd . "`n"
+    statusText .= "--------------------`n"
+    statusText .= "MODIFICATION STATUS:`n"
+    statusText .= alwaysOnTopStatus . "`n"
+    statusText .= borderlessStatus . "`n"
+    statusText .= transparencyStatus . "`n"
+    statusText .= clickThroughStatus
+
+    SelectedWindowText.Value := statusText
+    
+    ; === NOWOŚĆ: Dodajemy tooltip z pełnym tytułem ===
+    ; Usuwamy stary tooltip, jeśli istniał
+    ToolTip() 
+    ; Ustawiamy nowy tooltip, który pokaże się po najechaniu na pole SelectedWindowText
+    SelectedWindowText.ToolTip := fullTitle
 }
