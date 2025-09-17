@@ -11,6 +11,8 @@ global SavedPositions := Map()
 global gui1
 global ProfileFile := A_ScriptDir . "\window_profiles.ini"
 global BlacklistFile := A_ScriptDir . "\window_blacklist.ini"
+global previewGui := ""
+global lastCalculatedSize := Map("x", 0, "y", 0, "w", 0, "h", 0)
 
 ; === Ładowanie modułów ===
 #Include "%A_ScriptDir%\includes\math_evaluator.ahk"
@@ -42,6 +44,9 @@ btnApplyManual.OnEvent("Click", ApplyManualChanges)
 btnLoadProfile.OnEvent("Click", LoadProfile)
 btnSaveProfile.OnEvent("Click", SaveProfile)
 btnDeleteProfile.OnEvent("Click", DeleteProfile)
+ScaleSlider.OnEvent("Change", UpdateScalePreview)
+btnApplyScale.OnEvent("Click", ApplyScaling) 
+btnResetScale.OnEvent("Click", ResetScaling) 
 btnHide.OnEvent("Click", BlacklistSelectedWindow)
 
 OnMessage(0x0006, GuiActivateHandler) ; WM_ACTIVATE

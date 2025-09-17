@@ -1,7 +1,6 @@
 ; ===========================================
 ; === MODUŁ: window_functions.ahk ===
 ; ===========================================
-
 GuiActivateHandler(wParam, lParam, msg, hwnd) {
     global gui1
     if (hwnd == gui1.Hwnd && wParam > 0) {
@@ -66,8 +65,7 @@ RestoreAllWindows() {
 }
 
 RefreshListWithSelection(*) {
-    global MyListBox, SelectedHwnd, SelectedWindowText, OpacitySlider, StatusBar, gui1, editX, editY, editW, editH
-    global BlacklistFile, ModifiedWindows
+    global MyListBox, SelectedHwnd, SelectedWindowText, OpacitySlider, StatusBar, gui1, editX, editY, editW, editH, BlacklistFile, ModifiedWindows
 
     MAX_PREFIX_LENGTH := 50
 
@@ -94,7 +92,7 @@ RefreshListWithSelection(*) {
         title := WinGetTitle("ahk_id " hwnd)
         style := WinGetStyle("ahk_id " hwnd)
 
-        if (title != "" && WinGetMinMax("ahk_id " hwnd) != -1 && (style & 0x10000000) && (hwnd != gui1.Hwnd)) {
+        if (title != "" && WinGetMinMax("ahk_id " hwnd) != -1 && (style & 0x10000000) && (hwnd != gui1.Hwnd) && (!IsObject(previewGui) || hwnd != previewGui.Hwnd)) {
             processName := ""
             try {
                 processName := WinGetProcessName("ahk_id " hwnd)
@@ -478,4 +476,88 @@ UpdateStatusInfo(hwnd) {
     ToolTip() 
     ; Ustawiamy nowy tooltip, który pokaże się po najechaniu na pole SelectedWindowText
     SelectedWindowText.ToolTip := fullTitle
+}
+; ==========================================================
+; === SEKCJA SKALOWANIA - OSTATECZNA POPRAWKA SKŁADNI MAP ===
+; ==========================================================
+
+UpdateScalePreview(*) {
+    global SelectedHwnd, ModifiedWindows, previewGui, ScaleSlider, ScaleValueText, lastCalculatedSize
+    
+    if !SelectedHwnd || !ModifiedWindows.Has(SelectedHwnd) {
+        ScaleSlider.Value := 100
+        return
+    }
+
+if !IsObject(previewGui) {
+        previewGui := Gui("+AlwaysOnTop -Caption +E0x20 +ToolWindow", "Scale Preview")
+        previewGui.BackColor := "EEAA99"
+        ; === NOWE LINIE ===
+        previewGui.Opt("+E0x80000") ; Dodaj styl WS_EX_LAYERED
+        WinSetTransparent(150, previewGui) ; Ustaw przezroczystość (zakres 0-255)
+    }
+
+    originalState := ModifiedWindows[SelectedHwnd]
+    WinGetPos(&currentX, &currentY, &currentW, &currentH, "ahk_id " SelectedHwnd)
+
+    scaleFactor := ScaleSlider.Value / 100
+    newWidth := Round(originalState.w * scaleFactor)
+    newHeight := Round(originalState.h * scaleFactor)
+    
+    centerX := currentX + (currentW / 2)
+    centerY := currentY + (currentH / 2)
+    newX := Round(centerX - (newWidth / 2))
+    newY := Round(centerY - (newHeight / 2))
+    
+    lastCalculatedSize := Map("x", newX, "y", newY, "w", newWidth, "h", newHeight)
+
+    previewGui.Show("NA NoActivate w" . newWidth . " h" . newHeight . " x" . newX . " y" . newY)
+    ScaleValueText.Text := ScaleSlider.Value . "%"
+
+    SetTimer(DestroyPreview, 0)
+    SetTimer(DestroyPreview, -2000)
+}
+
+DestroyPreview() {
+    global previewGui
+    if IsObject(previewGui) {
+        previewGui.Destroy()
+        previewGui := ""
+    }
+}
+
+ApplyScaling(*) {
+    global SelectedHwnd, editW, editH, lastCalculatedSize, ScaleSlider
+    
+    if !SelectedHwnd {
+        return
+    }
+
+    if !IsObject(lastCalculatedSize) || !lastCalculatedSize.Has("w") {
+        ResetScaling()
+        return
+    }
+
+    ; Używamy poprawnej składni z nawiasami kwadratowymi
+    if (ScaleSlider.Value = 100 || lastCalculatedSize["w"] = 0) {
+        ResetScaling()
+        return
+    }
+
+    WinMove(lastCalculatedSize["x"], lastCalculatedSize["y"], lastCalculatedSize["w"], lastCalculatedSize["h"], "ahk_id " SelectedHwnd)
+    
+    editW.Value := lastCalculatedSize["w"]
+    editH.Value := lastCalculatedSize["h"]
+    
+    ResetScaling()
+}
+
+ResetScaling(*) {
+    global ScaleSlider, ScaleValueText
+    
+    ScaleSlider.Value := 100
+    ScaleValueText.Text := "100%"
+    
+    SetTimer(DestroyPreview, 0)
+    DestroyPreview()
 }
