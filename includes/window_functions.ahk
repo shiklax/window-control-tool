@@ -124,7 +124,7 @@ RefreshListWithSelection(*) {
         StatusBar.Text := "Found " listItems.Length " windows"
     }
     
-    if (previousSelectedHwnd && WinGetTitle("ahk_id " previousSelectedHwnd) != "") { ; Dodatkowe zabezpieczenie
+    if (previousSelectedHwnd && WinExist("ahk_id " previousSelectedHwnd)){ ; Dodatkowe zabezpieczenie
         for index, itemText in listItems {
             if InStr(itemText, "ID:" previousSelectedHwnd) {
                 MyListBox.Choose(index)

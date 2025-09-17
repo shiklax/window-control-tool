@@ -47,7 +47,7 @@ OnMessage(0x0006, GuiActivateHandler) ; WM_ACTIVATE
 
 ; === Główna logika startowa ===
 LoadProfilesFromFile()
-gui1.Show("w700 h600")
+gui1.Show("w800 h670")
 UpdateProfileList()
 RefreshListWithSelection()
 return ; Zatrzymuje auto-wykonywanie, chociaż Persistent i tak by to zrobił
