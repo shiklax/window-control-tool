@@ -17,9 +17,10 @@ global BlacklistFile := A_ScriptDir . "\window_blacklist.ini"
 #Include "%A_ScriptDir%\includes\profile_logic.ahk"
 #Include "%A_ScriptDir%\includes\window_functions.ahk"
 #Include "%A_ScriptDir%\includes\gui_layout.ahk"
-
+#Include "%A_ScriptDir%\includes\tray_handler.ahk"
 
 ; Inicjalizacja GUI (funkcja z gui_layout.ahk)
+CreateTrayMenu()
 CreateGUI()
 
 ; === Events (klej łączący GUI z funkcjami) ===
@@ -54,10 +55,6 @@ return ; Zatrzymuje auto-wykonywanie, chociaż Persistent i tak by to zrobił
 
 ; === Funkcje Główne Aplikacji ===
 GuiClose(*) {
-    global chkRestoreOnExit
-    if chkRestoreOnExit.Value {
-        RestoreAllWindows()
-    }
-    SaveProfilesToFile()
-    ExitApp()
+    ; Zamiast zamykać aplikację, teraz tylko ją ukrywamy
+    ToggleGUIVisibility()
 }

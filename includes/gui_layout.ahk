@@ -11,7 +11,7 @@ CreateGUI() {
     global ProfileList, btnLoadProfile, btnSaveProfile, btnDeleteProfile
     global chkRestoreOnExit, StatusBar
 
-    gui1 := Gui("-Resize -MaximizeBox", "Window Control Tool v4.7")
+    gui1 := Gui("-Resize -MaximizeBox -MinimizeBox", "Window Control Tool v4.7")
     gui1.SetFont("s9", "Segoe UI")
 
     ; === KOLUMNA LEWA: Lista okien i zarządzanie ===
